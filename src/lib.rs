@@ -1,4 +1,4 @@
-use std::cmp::Ord;
+use std::cmp::{Ord, Ordering};
 
 /// An expression capable of modifying itself if given an operator and an argument.
 /// There may be multiple implementations for a single expression type with distinct operator types.
@@ -7,11 +7,12 @@ pub trait Expression<Op> {
     fn reduce(&mut self, op: Op, arg: Self);
 }
 
-/// An operator capable of reporting its precedence.
+/// An operator capable of reporting its precedence and associativity.
 pub trait Operator {
     type Precedence;
     
     fn precedence(&self) -> Self::Precedence;
+    fn associativity(&self) -> Associativity;
 }
 
 /// A list of N+1 expressions with N binary operators in between them.
@@ -33,17 +34,27 @@ where
         }
     }
     /// Pushes an operator-expression pair to the end of the list, reducing expressions according to the rules of precedence.
-    /// Assumes left associativity when precedence is equal.
-    pub fn push(&mut self, operator: Op, expr: Expr) {
+    pub fn push(&mut self, operator: Op, expr: Expr) -> Result<(), (/*TODO*/)> {
         let precedence = operator.precedence();
         while let Some((last_op, _)) = self.stack.last() {
-            if last_op.precedence() >= precedence {
-                self.reduce();
-            } else {
-                break;
+            let last_precedence = last_op.precedence();
+            match last_precedence.cmp(&precedence) {
+                Ordering::Greater => self.reduce(),
+                Ordering::Equal => {
+                    use Associativity::*;
+                    let assoc = operator.associativity();
+                    let last_assoc = last_op.associativity();
+                    match last_assoc.combine(assoc) {
+                        Left => self.reduce(),
+                        Right => break,
+                        Neither => return Err(()),
+                    }
+                },
+                Ordering::Less => break,
             }
         }
         self.stack.push((operator, expr));
+        Ok(())
     }
     
     fn reduce(&mut self) {
@@ -61,6 +72,31 @@ where
         }
 
         self.expr
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum Associativity {
+    Neither,
+    Left,
+    Right,
+}
+
+impl Associativity {
+    pub fn mirror(self) -> Self {
+        use Associativity::*;
+        match self {
+            Neither => Neither,
+            Left => Right,
+            Right => Left,
+        }
+    }
+
+    fn combine(self, other: Self) -> Self {
+        if self == other {
+            self
+        } else {
+            Associativity::Neither
+        }
     }
 }
 
