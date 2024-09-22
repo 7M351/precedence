@@ -5,14 +5,25 @@ use std::cmp::{Ord, Ordering};
 /// This is why operator type is specified by generic argument as opposed to an associated type.
 pub trait Expression<Op> {
     fn reduce(&mut self, op: Op, arg: Self);
+
+    type Info;
+    fn info(&self) -> Self::Info;
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct AssociativityError<I> {
+    pub left_info: I,
+    pub right_info: I,
 }
 
 /// An operator capable of reporting its precedence and associativity.
 pub trait Operator {
     type Precedence;
+    type Info;
     
     fn precedence(&self) -> Self::Precedence;
     fn associativity(&self) -> Associativity;
+    fn info(&self) -> Self::Info;
 }
 
 /// A list of N+1 expressions with N binary operators in between them.
@@ -34,9 +45,9 @@ where
         }
     }
     /// Pushes an operator-expression pair to the end of the list, reducing expressions according to the rules of precedence.
-    pub fn push(&mut self, operator: Op, expr: Expr) -> Result<(), (/*TODO*/)> {
+    pub fn push(&mut self, operator: Op, expr: Expr) -> Result<(), AssociativityError<Op::Info>> {
         let precedence = operator.precedence();
-        while let Some((last_op, _)) = self.stack.last() {
+        while let Some((last_op, _last_expr)) = self.stack.last() {
             let last_precedence = last_op.precedence();
             match last_precedence.cmp(&precedence) {
                 Ordering::Greater => self.reduce(),
@@ -47,7 +58,13 @@ where
                     match last_assoc.combine(assoc) {
                         Left => self.reduce(),
                         Right => break,
-                        Neither => return Err(()),
+                        Neither => {
+                            let err = AssociativityError {
+                                left_info: last_op.info(),
+                                right_info: operator.info(),
+                            };
+                            return Err(err);
+                        },
                     }
                 },
                 Ordering::Less => break,
