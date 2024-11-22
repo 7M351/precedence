@@ -7,6 +7,7 @@ pub trait Expression<Op> {
     fn reduce(&mut self, op: Op, arg: Self);
 }
 
+/// An operator capable of reporting its precedence and associativity.
 pub trait Operator {
     type Precedence;
     type Associativity: AssociativityRepr;
@@ -86,6 +87,7 @@ where
     <Op as Operator>::Precedence: Ord,
 {
 }
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Associativity {
     Left,
@@ -101,8 +103,16 @@ impl Associativity {
         }
     }
 }
-
-pub trait AssociativityRepr {
+/// Trait representing the associativity of an operator type.
+///
+/// Implementing types `LeftAssociativity` and `RightAssociativity`
+/// can be used for sets of operators
+/// wherein all operators associate the same way.
+/// They produce no associativity errors.
+///
+/// Implementing type `Option<Associativity>` uses the `None` variant
+/// to encode operators which do not associate by intention.
+pub trait AssociativityRepr { // TODO: same associativity at a given level of precedence (infallible)
     type Error;
 
     fn associate(self, next: Self) -> Result<Associativity, Self::Error>;
@@ -111,7 +121,6 @@ pub trait AssociativityRepr {
 #[derive(Copy, Clone, Debug)]
 pub struct AssociativityError; // TODO: add some information
 
-/// An operator capable of reporting its precedence and associativity.
 
 impl AssociativityRepr for Associativity {
     type Error = AssociativityError;
