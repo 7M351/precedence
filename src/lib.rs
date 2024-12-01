@@ -10,7 +10,7 @@ pub trait Expression<Op> {
 /// An operator capable of reporting its precedence and associativity.
 pub trait Operator {
     type Precedence;
-    type Associativity: AssociativityRepr;
+    type Associativity;
 
     fn precedence(&self) -> Self::Precedence;
     fn associativity(&self) -> Self::Associativity;
@@ -27,6 +27,7 @@ where
     Expr: Expression<Op>,
     Op: Operator,
     <Op as Operator>::Precedence: Ord,
+    <Op as Operator>::Associativity: AssociativityRepr,
 {
     pub fn new(expr: Expr) -> Self {
         Self {
