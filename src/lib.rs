@@ -6,7 +6,7 @@ use std::cmp::{Ord, Ordering};
 pub trait Operator<Expr> {
     type Precedence;
     type Associativity;
-    
+
     fn apply(self, expr1: &mut Expr, expr2: Expr);
     fn precedence(&self) -> Self::Precedence;
     fn associativity(&self) -> Self::Associativity;
@@ -30,14 +30,23 @@ where
             stack: Vec::new(),
         }
     }
-    // TODO: extract this code to a helper method
     /// Pushes an operator-expression pair to the end of the list,
     /// reducing expressions according to the rules of precedence.
-    pub fn push(
+    pub fn try_push(
         mut self,
         operator: Op,
         expr: Expr,
     ) -> Result<Self, <Op::Associativity as AssociativityRepr>::Error> {
+        match self.push_inner(operator, expr) {
+            Ok(()) => Ok(self),
+            Err(e) => Err(e),
+        }
+    }
+    fn push_inner(
+        &mut self,
+        operator: Op,
+        expr: Expr,
+    ) -> Result<(), <Op::Associativity as AssociativityRepr>::Error> {
         let precedence = operator.precedence();
         while let Some((last_op, _last_expr)) = self.stack.last() {
             let last_precedence = last_op.precedence();
@@ -54,7 +63,7 @@ where
             }
         }
         self.stack.push((operator, expr));
-        Ok(self)
+        Ok(())
     }
 
     fn reduce(&mut self) {
@@ -82,7 +91,11 @@ where
     Op: Operator<Expr>,
     Op::Associativity: AssociativityRepr<Error = NoError>,
     <Op as Operator<Expr>>::Precedence: Ord,
-{ // TODO: convenience method for infallible precedence
+{
+    /// Convenient alternative of `try_push` for operators which never fail to associate.
+    pub fn push(&mut self, operator: Op, expr: Expr) {
+        let Ok(()) = self.push_inner(operator, expr);
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -109,7 +122,8 @@ impl Associativity {
 ///
 /// Implementing type `Option<Associativity>` uses the `None` variant
 /// to encode operators which do not associate by intention.
-pub trait AssociativityRepr { // TODO: same associativity at a given level of precedence (infallible)
+pub trait AssociativityRepr {
+    // TODO: same associativity at a given level of precedence (infallible)
     type Error;
 
     fn associate(self, next: Self) -> Result<Associativity, Self::Error>;
@@ -117,7 +131,6 @@ pub trait AssociativityRepr { // TODO: same associativity at a given level of pr
 
 #[derive(Copy, Clone, Debug)]
 pub struct AssociativityError; // TODO: add some information
-
 
 impl AssociativityRepr for Associativity {
     type Error = AssociativityError;
@@ -169,7 +182,7 @@ mod test {
     impl crate::Operator<i32> for Plus {
         type Precedence = ();
         type Associativity = crate::LeftAssociativity;
-        
+
         fn apply(self, expr1: &mut i32, expr2: i32) {
             *expr1 += expr2;
         }
@@ -180,9 +193,9 @@ mod test {
     }
     #[test]
     fn infallible_result_match() {
-        let expr_stack = crate::ExprStack::new(15);
-        let Ok(expr_stack) = expr_stack.push(Plus, 13);
-        let Ok(expr_stack) = expr_stack.push(Plus, 11);
+        let mut expr_stack = crate::ExprStack::new(15);
+        expr_stack.push(Plus, 13);
+        expr_stack.push(Plus, 11);
         let result = expr_stack.finish();
         assert_eq!(result, 39);
     }
