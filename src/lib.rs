@@ -1,17 +1,13 @@
 use std::cmp::{Ord, Ordering};
 
-/// An expression capable of modifying itself if given an operator and an argument.
-/// There may be multiple implementations for a single expression type with distinct operator types.
-/// This is why operator type is specified by generic argument as opposed to an associated type.
-pub trait Expression<Op> {
-    fn reduce(&mut self, op: Op, arg: Self);
-}
-
-/// An operator capable of reporting its precedence and associativity.
-pub trait Operator {
+/// A binary operator capable of reporting its precedence and associativity.
+///
+/// Core trait of this library.
+pub trait Operator<Expr> {
     type Precedence;
     type Associativity;
-
+    
+    fn apply(self, expr1: &mut Expr, expr2: Expr);
     fn precedence(&self) -> Self::Precedence;
     fn associativity(&self) -> Self::Associativity;
 }
@@ -24,10 +20,9 @@ pub struct ExprStack<Expr, Op> {
 
 impl<Expr, Op> ExprStack<Expr, Op>
 where
-    Expr: Expression<Op>,
-    Op: Operator,
-    <Op as Operator>::Precedence: Ord,
-    <Op as Operator>::Associativity: AssociativityRepr,
+    Op: Operator<Expr>,
+    <Op as Operator<Expr>>::Precedence: Ord,
+    <Op as Operator<Expr>>::Associativity: AssociativityRepr,
 {
     pub fn new(expr: Expr) -> Self {
         Self {
@@ -69,7 +64,7 @@ where
                 .last_mut()
                 .map_or(&mut self.expr, |pair| &mut pair.1);
 
-            expr1_mut.reduce(op, expr2);
+            op.apply(expr1_mut, expr2);
         }
     }
     /// Reduces all remaining operations and returns the single result.
@@ -84,10 +79,9 @@ where
 
 impl<Expr, Op> ExprStack<Expr, Op>
 where
-    Expr: Expression<Op>,
-    Op: Operator,
+    Op: Operator<Expr>,
     Op::Associativity: AssociativityRepr<Error = NoError>,
-    <Op as Operator>::Precedence: Ord,
+    <Op as Operator<Expr>>::Precedence: Ord,
 { // TODO: convenience method for infallible precedence
 }
 
@@ -172,27 +166,24 @@ impl AssociativityRepr for RightAssociativity {
 #[cfg(test)]
 mod test {
     struct Plus;
-    impl crate::Operator for Plus {
+    impl crate::Operator<i32> for Plus {
         type Precedence = ();
         type Associativity = crate::LeftAssociativity;
-
+        
+        fn apply(self, expr1: &mut i32, expr2: i32) {
+            *expr1 += expr2;
+        }
         fn precedence(&self) -> Self::Precedence {}
         fn associativity(&self) -> Self::Associativity {
             crate::LeftAssociativity
         }
     }
-    struct Value(i32);
-    impl crate::Expression<Plus> for Value {
-        fn reduce(&mut self, Plus: Plus, arg: Self) {
-            self.0 += arg.0;
-        }
-    }
     #[test]
     fn infallible_result_match() {
-        let expr_stack = crate::ExprStack::new(Value(15));
-        let Ok(expr_stack) = expr_stack.push(Plus, Value(13));
-        let Ok(expr_stack) = expr_stack.push(Plus, Value(11));
-        let result = expr_stack.finish().0;
+        let expr_stack = crate::ExprStack::new(15);
+        let Ok(expr_stack) = expr_stack.push(Plus, 13);
+        let Ok(expr_stack) = expr_stack.push(Plus, 11);
+        let result = expr_stack.finish();
         assert_eq!(result, 39);
     }
 }
