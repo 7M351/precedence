@@ -34,7 +34,9 @@ where
             stack: Vec::new(),
         }
     }
-    /// Pushes an operator-expression pair to the end of the list, reducing expressions according to the rules of precedence.
+    // TODO: extract this code to a helper method
+    /// Pushes an operator-expression pair to the end of the list,
+    /// reducing expressions according to the rules of precedence.
     pub fn push(
         mut self,
         operator: Op,
@@ -85,7 +87,7 @@ where
     Op: Operator,
     Op::Associativity: AssociativityRepr<Error = NoError>,
     <Op as Operator>::Precedence: Ord,
-{
+{ // TODO: convenience method for infallible precedence
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
