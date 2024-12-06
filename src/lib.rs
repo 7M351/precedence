@@ -13,6 +13,7 @@ pub trait Operator<Expr> {
 }
 
 /// A list of N+1 expressions with N binary operators in between them.
+#[derive(Clone, Debug)]
 pub struct ExprStack<Expr, Op> {
     expr: Expr,
     stack: Vec<(Op, Expr)>,
